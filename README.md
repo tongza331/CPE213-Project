@@ -1,5 +1,5 @@
 # CPE213-Project
- Title project: Can Covid19 be adapted to endemic disease?
+ Title project: Analysis and prediction of Covid19 situation in Thailand.
 
 CPE213 Data models Project.
 Members:
