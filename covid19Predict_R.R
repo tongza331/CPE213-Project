@@ -6,6 +6,11 @@ library(lubridate)
 library(forecast)
 library(imputeTS)
 library(reshape2) 
+library(rpart) 
+library(rpart.plot) 
+library(caret)
+library(xts)
+library(lattice)
 
 # ------------------------------------------------------------------------------ #
 df <- read.csv("dataset/dataCovidPredict.csv")
@@ -78,8 +83,6 @@ ggplot(df, aes('',excess_mortality_cumulative)) +
 #18 excess_mortality: YES
 ggplot(df, aes('',excess_mortality)) + 
   geom_boxplot()
-ggplot(stack(df), aes(x = ind, y = values, color=ind)) +
-  geom_boxplot(outlier.color="black")
 
 # ------------------------------------------------------------------------------ #
 
@@ -89,9 +92,11 @@ df %>% select(everything()) %>%
   summarise_all(list(~sum(is.na(.))))
 # Replace NA with 0 
 dfClean <- df %>% select(-total_tests,
-              -new_tests,
-              -reproduction_rate)
+                         -new_tests,
+                         -reproduction_rate)
+
 dfClean[is.na(dfClean)] <- 0
+
 sum(is.na(dfClean))
 dfTemp <- df %>% select(total_tests,
                          new_tests,
@@ -105,6 +110,8 @@ overallAfterNA <- ggplot(stack(df), aes(x = ind, y = values, color=ind)) +
 dfClean$total_tests <- dfTemp$total_tests
 dfClean$new_tests <- dfTemp$new_tests
 dfClean$reproduction_rate <- dfTemp$reproduction_rate
+overallAfterNA <- ggplot(stack(dfClean), aes(x = ind, y = values, color=ind)) +
+  geom_boxplot(outlier.color="black")
 
 # ------------------------------------------------------------------------------ #
 
@@ -124,25 +131,118 @@ dfCor <- as.data.frame(cor(dfClean %>% select(-txn_date)))
 corrplot(cor(dfClean %>% select(-txn_date)))
 
 # Plot line smooth regression
-ggplot(dfClean, aes(txn_date, new_case)) + geom_point() + geom_line(colour ="#228B22",size=1) + scale_x_date(date_labels = "%Y %b %d")
-ggplot(dfClean, aes(txn_date, total_case)) + geom_line(colour ="#006400",size=2) + scale_x_date(date_labels = "%Y %b %d")
+ggplot(dfClean, aes(txn_date, new_case),options(scipen = 100, digits = 4)) + geom_point() + geom_line(colour ="#228B22",size=1) + scale_x_date(date_labels = "%Y %b %d")
+ggplot(dfClean, aes(txn_date, total_case),options(scipen = 100, digits = 4)) + geom_line(colour ="#006400",size=2) + scale_x_date(date_labels = "%Y %b %d")
 
-ggplot(dfClean, aes(txn_date, new_case_excludeabroad)) + geom_point() + geom_line(colour ="#32CD32",size=1) + scale_x_date(date_labels = "%Y %b %d")
-ggplot(dfClean, aes(txn_date, total_case_excludeabroad)) + geom_line(colour ="#32CD32",size=2) + scale_x_date(date_labels = "%Y %b %d")
+ggplot(dfClean, aes(txn_date, new_case_excludeabroad),options(scipen = 100, digits = 4)) + geom_point() + geom_line(colour ="#32CD32",size=1) + scale_x_date(date_labels = "%Y %b %d")
+ggplot(dfClean, aes(txn_date, total_case_excludeabroad),options(scipen = 100, digits = 4)) + geom_line(colour ="#32CD32",size=2) + scale_x_date(date_labels = "%Y %b %d")
 
-ggplot(dfClean, aes(txn_date, new_death)) + geom_point() + geom_line(colour ="red",size=1) + scale_x_date(date_labels = "%Y %b %d")
-ggplot(dfClean, aes(txn_date, total_death)) + geom_line(colour ="red",size=2) + scale_x_date(date_labels = "%Y %b %d")
+ggplot(dfClean, aes(txn_date, new_death),options(scipen = 100, digits = 4)) + geom_point() + geom_line(colour ="red",size=1) + scale_x_date(date_labels = "%Y %b %d")
+ggplot(dfClean, aes(txn_date, total_death),options(scipen = 100, digits = 4)) + geom_line(colour ="red",size=2) + scale_x_date(date_labels = "%Y %b %d")
 
-ggplot(dfClean, aes(txn_date, new_recovered)) + geom_point() + geom_line(colour ="#0096FF",size=1) + scale_x_date(date_labels = "%Y %b %d")
-ggplot(dfClean, aes(txn_date, total_recovered)) + geom_line(colour ="#0096FF",size=2) + scale_x_date(date_labels = "%Y %b %d")
+ggplot(dfClean, aes(txn_date, new_recovered),options(scipen = 100, digits = 4)) + geom_point() + geom_line(colour ="#0096FF",size=1) + scale_x_date(date_labels = "%Y %b %d")
+ggplot(dfClean, aes(txn_date, total_recovered),options(scipen = 100, digits = 4)) + geom_line(colour ="#0096FF",size=2) + scale_x_date(date_labels = "%Y %b %d")
 
 tempData <- dfClean %>% select(txn_date,
+                           total_vaccinations,
                            people_vaccinated,
                            people_fully_vaccinated,
                            total_boosters,
                            new_vaccinations)
 data_long <- melt(tempData, id = "txn_date")
-ggplot(data_long,aes(x = txn_date, y = value, color = variable)) +  geom_line(size=2)
+ggplot(data_long,aes(x = txn_date, y = value, color = variable),options(scipen = 100, digits = 4)) +  geom_line(size=2)
+
+tempData <- dfClean %>% select(txn_date,
+                               total_case,
+                               total_case_excludeabroad,
+                               total_death,
+                               total_recovered)
+data_long <- melt(tempData, id = "txn_date")
+ggplot(data_long,aes(x = txn_date, y = value, color = variable),options(scipen = 100, digits = 4)) +  geom_line(size=2)
+
+ggplot(dfClean, aes(txn_date, stringency_index),options(scipen = 100, digits = 4)) + geom_line(colour ="purple",size=1) + scale_x_date(date_labels = "%Y %b %d")
+
+ggplot(dfClean, aes(txn_date, new_tests),options(scipen = 100, digits = 4)) + geom_point() + geom_line(colour ="#99a9ff",size=1) + scale_x_date(date_labels = "%Y %b %d")
+ggplot(dfClean, aes(txn_date, total_tests),options(scipen = 100, digits = 4)) + geom_line(colour ="#00ddde",size=2) + scale_x_date(date_labels = "%Y %b %d")
+
+ggplot(dfClean, aes(txn_date, reproduction_rate),options(scipen = 100, digits = 4)) + geom_line(colour ="orange",size=1) + scale_x_date(date_labels = "%Y %b %d")
+
+ggplot(dfClean, aes(txn_date, all_new_case),options(scipen = 100, digits = 4)) + geom_line(colour ="#006400",size=2) + scale_x_date(date_labels = "%Y %b %d")
+
+# ------------------------------------------------------------------------------ #
+# Build model with linear regression
+# Part1: Predict new case
+dfPredict <- dfClean %>% select(-txn_date)
+
+cor_mat <- cor(dfPredict)
+temp_df <- data.frame(cor_mat[2,])
+colnames(temp_df) = c('all_new_case')
+temp_df %>%
+  filter(all_new_case > abs(0.5))
+
+cor_mat <- cor(dfPredict)
+temp_df2 <- data.frame(cor_mat[5,])
+colnames(temp_df2) = c('new_death')
+temp_df2 
+
+# train/test
+set.seed(42)
+n <- nrow(dfPredict)
+train_id <- sample(1:n, size = 0.8*n)
+train_data <- dfPredict[train_id, ]
+test_data <- dfPredict[-train_id, ]
+
+modelNewcase1 <- lm(formula = all_new_case ~ ., data = train_data)
+summary(modelNewcase1, na.rm=TRUE)
+new_case_pred = predict(modelNewcase1,test_data)
+sum((new_case_pred - test_data$all_new_case)^2)
+MAE(new_case_pred,test_data$all_new_case)
+
+modelNewcase2 <- lm(formula = all_new_case ~ NumDays + new_tests + new_vaccinations + people_fully_vaccinated + total_boosters, data = train_data)
+summary(modelNewcase2)
+new_case_pred2 = predict(modelNewcase2,test_data)
+sum((new_case_pred2 - test_data$all_new_case)^2)
+MAE(new_case_pred2,test_data$all_new_case)
+
+modelNewcase3 <- lm(formula = all_new_case ~ NumDays * new_tests * new_vaccinations * people_fully_vaccinated * total_boosters, data = train_data)
+summary(modelNewcase3)
+new_case_pred3 = predict(modelNewcase3,test_data)
+sum((new_case_pred3 - test_data$all_new_case)^2)
+mean(modelNewcase3$residuals^2)
+
+modelNewcase4 <- lm(formula = all_new_case ~ NumDays + new_tests * new_vaccinations * people_fully_vaccinated * total_boosters
+                    + stringency_index + reproduction_rate, data = train_data)
+summary(modelNewcase4)
+new_case_pred4 = predict(modelNewcase4,test_data)
+sum((new_case_pred4 - test_data$all_new_case)^2)
+
+modelNewcase5 <- lm(formula = all_new_case ~ NumDays+new_tests, data = train_data)
+summary(modelNewcase5)
+new_case_pred5 = predict(modelNewcase5,test_data)
+sum((new_case_pred5 - test_data$all_new_case)^2)
+mean(modelNewcase5$residuals^2)
+
+# ------------------------------------------------------------------------------ #
+# Part2: Predict new death
+modelNewdeath1 <- lm(formula = new_death ~ NumDays + new_recovered * stringency_index * reproduction_rate, data = train_data)
+summary(modelNewdeath1)
+new_death_pred = predict(modelNewdeath1,test_data)
+sum((new_death_pred - test_data$new_death)^2)
+mean(modelNewdeath1$residuals^2)
+
+modelNewdeath2 <- lm(formula = new_death ~ ., data = train_data)
+summary(modelNewdeath2)
+new_death_pred2 = predict(modelNewdeath2,test_data)
+sum((new_death_pred2 - test_data$new_death)^2)
+mean(modelNewdeath2$residuals^2)
+
+modelNewdeath3 <- lm(formula = new_death ~ NumDays * new_recovered * stringency_index, data = train_data)
+summary(modelNewdeath3)
+new_death_pred3 = predict(modelNewdeath3,test_data)
+sum((new_death_pred3 - test_data$new_death)^2)
+mean(modelNewdeath3$residuals^2) # choose this for new death
+RMSE(new_death_pred3, test_data$new_death)
+
 
 
 
